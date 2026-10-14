@@ -1,0 +1,13 @@
+{
+  "uuid": "password-generator@loginone",
+  "name": "Password Generator",
+  "description": "Generate strong, customizable passwords directly from the GNOME panel. Left-click copies a password to clipboard; right-click opens settings (length, charsets, exclude ambiguous chars). This extension accesses the clipboard.",
+  "shell-version": [
+    "45", "46", "47", "48", "49", "50"
+  ],
+  "url": "https://github.com/loginone33/Gnome-Password-Generator-Extension",
+  "donations": {
+    "kofi": "loginone",
+    "buymeacoffee": "loginone"
+  }
+}
