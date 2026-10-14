@@ -76,8 +76,8 @@ class PasswordGeneratorButton extends PanelMenu.Button {
         super._init(0.0, 'Password Generator');
 
         this._path = path;
-        this._configFile = `${GLib.get_user_config_dir()}/gnome-password-generator.json`;
-        this._config = this._loadConfig();
+        this._file = Gio.File.new_for_path(`${GLib.get_user_config_dir()}/gnome-password-generator.json`);
+        this._config = { ...DEFAULT_CONFIG };
 
         const iconFile = Gio.File.new_for_path(`${path}/password-generator-symbolic.svg`);
         this._gicon = new Gio.FileIcon({ file: iconFile });
@@ -90,21 +90,34 @@ class PasswordGeneratorButton extends PanelMenu.Button {
 
         this._setupGestures();
         this._buildMenu();
+        this._loadConfigAsync();
     }
 
-    _loadConfig() {
-        if (GLib.file_test(this._configFile, GLib.FileTest.EXISTS)) {
-            const [ok, content] = GLib.file_get_contents(this._configFile);
-            if (ok) {
-                const parsed = JSON.parse(new TextDecoder().decode(content));
-                return { ...DEFAULT_CONFIG, ...parsed };
-            }
-        }
-        return { ...DEFAULT_CONFIG };
+    _loadConfigAsync() {
+        this._file.load_contents_async(null, (_file, res) => {
+            const [ok, contents] = this._file.load_contents_finish(res);
+            if (!ok)
+                return;
+
+            const parsed = JSON.parse(new TextDecoder().decode(contents));
+            this._config = { ...DEFAULT_CONFIG, ...parsed };
+            this._syncUI();
+        });
     }
 
-    _saveConfig() {
-        GLib.file_set_contents(this._configFile, JSON.stringify(this._config, null, 2));
+    _saveConfigAsync() {
+        const json = JSON.stringify(this._config, null, 2);
+        const bytes = new GLib.Bytes(new TextEncoder().encode(json));
+        this._file.replace_contents_bytes_async(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null, null);
+    }
+
+    _syncUI() {
+        this._lengthEntry.set_text(String(this._config.length));
+        this._swLower.setToggleState(this._config.useLower);
+        this._swUpper.setToggleState(this._config.useUpper);
+        this._swDigits.setToggleState(this._config.useDigits);
+        this._swSymbols.setToggleState(this._config.useSymbols);
+        this._swAmbiguous.setToggleState(this._config.excludeAmbiguous);
     }
 
     _setupGestures() {
@@ -194,28 +207,28 @@ class PasswordGeneratorButton extends PanelMenu.Button {
         this._swLower = new PopupMenu.PopupSwitchMenuItem('Lowercase (a-z)', this._config.useLower);
         this._swLower.connect('toggled', (_item, state) => {
             this._config.useLower = state;
-            this._saveConfig();
+            this._saveConfigAsync();
         });
         this.menu.addMenuItem(this._swLower);
 
         this._swUpper = new PopupMenu.PopupSwitchMenuItem('Uppercase (A-Z)', this._config.useUpper);
         this._swUpper.connect('toggled', (_item, state) => {
             this._config.useUpper = state;
-            this._saveConfig();
+            this._saveConfigAsync();
         });
         this.menu.addMenuItem(this._swUpper);
 
         this._swDigits = new PopupMenu.PopupSwitchMenuItem('Digits (0-9)', this._config.useDigits);
         this._swDigits.connect('toggled', (_item, state) => {
             this._config.useDigits = state;
-            this._saveConfig();
+            this._saveConfigAsync();
         });
         this.menu.addMenuItem(this._swDigits);
 
         this._swSymbols = new PopupMenu.PopupSwitchMenuItem('Special characters (!@#$...)', this._config.useSymbols);
         this._swSymbols.connect('toggled', (_item, state) => {
             this._config.useSymbols = state;
-            this._saveConfig();
+            this._saveConfigAsync();
         });
         this.menu.addMenuItem(this._swSymbols);
 
@@ -224,7 +237,7 @@ class PasswordGeneratorButton extends PanelMenu.Button {
         this._swAmbiguous = new PopupMenu.PopupSwitchMenuItem('Exclude ambiguous characters', this._config.excludeAmbiguous);
         this._swAmbiguous.connect('toggled', (_item, state) => {
             this._config.excludeAmbiguous = state;
-            this._saveConfig();
+            this._saveConfigAsync();
         });
         this.menu.addMenuItem(this._swAmbiguous);
 
@@ -240,7 +253,7 @@ class PasswordGeneratorButton extends PanelMenu.Button {
         const clamped = Math.max(4, Math.min(32, val));
         this._config.length = clamped;
         this._lengthEntry.set_text(String(clamped));
-        this._saveConfig();
+        this._saveConfigAsync();
     }
 
     _generateAndCopy() {
