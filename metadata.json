@@ -6,6 +6,8 @@
     "45", "46", "47", "48", "49", "50"
   ],
   "url": "https://github.com/loginone33/Gnome-Password-Generator-Extension",
+  "settings-schema": "org.gnome.shell.extensions.password-generator",
+  "gettext-domain": "password-generator@loginone",
   "donations": {
     "kofi": "loginone",
     "buymeacoffee": "loginone"

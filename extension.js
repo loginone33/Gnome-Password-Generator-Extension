@@ -15,26 +15,17 @@ const CHAR_SETS = {
     symbols: '!@#$%^&*()-_=+[]{}|;:,.<>?',
 };
 
-const DEFAULT_CONFIG = {
-    length: 16,
-    useLower: true,
-    useUpper: true,
-    useDigits: true,
-    useSymbols: true,
-    excludeAmbiguous: false,
-};
-
 function getRandomInt(max) {
     return GLib.random_int_range(0, max);
 }
 
-function generatePassword(config) {
+function generatePassword(settings) {
     let lower = CHAR_SETS.lower;
     let upper = CHAR_SETS.upper;
     let digits = CHAR_SETS.digits;
     let symbols = CHAR_SETS.symbols;
 
-    if (config.excludeAmbiguous) {
+    if (settings.get_boolean('exclude-ambiguous')) {
         lower = lower.replace(/[lio]/g, '');
         upper = upper.replace(/[ILO]/g, '');
         digits = digits.replace(/[01]/g, '');
@@ -42,15 +33,15 @@ function generatePassword(config) {
     }
 
     const sets = [];
-    if (config.useLower && lower.length > 0) sets.push(lower);
-    if (config.useUpper && upper.length > 0) sets.push(upper);
-    if (config.useDigits && digits.length > 0) sets.push(digits);
-    if (config.useSymbols && symbols.length > 0) sets.push(symbols);
+    if (settings.get_boolean('use-lower') && lower.length > 0) sets.push(lower);
+    if (settings.get_boolean('use-upper') && upper.length > 0) sets.push(upper);
+    if (settings.get_boolean('use-digits') && digits.length > 0) sets.push(digits);
+    if (settings.get_boolean('use-symbols') && symbols.length > 0) sets.push(symbols);
 
     if (sets.length === 0)
         return null;
 
-    const length = Math.max(4, Math.min(32, config.length));
+    const length = Math.max(4, Math.min(32, settings.get_int('length')));
     const allChars = sets.join('');
     const password = [];
 
@@ -72,12 +63,10 @@ function generatePassword(config) {
 
 const PasswordGeneratorButton = GObject.registerClass(
 class PasswordGeneratorButton extends PanelMenu.Button {
-    _init(path) {
+    _init(path, settings) {
         super._init(0.0, 'Password Generator');
 
-        this._path = path;
-        this._file = Gio.File.new_for_path(`${GLib.get_user_config_dir()}/gnome-password-generator.json`);
-        this._config = { ...DEFAULT_CONFIG };
+        this._settings = settings;
 
         const iconFile = Gio.File.new_for_path(`${path}/password-generator-symbolic.svg`);
         this._gicon = new Gio.FileIcon({ file: iconFile });
@@ -90,34 +79,6 @@ class PasswordGeneratorButton extends PanelMenu.Button {
 
         this._setupGestures();
         this._buildMenu();
-        this._loadConfigAsync();
-    }
-
-    _loadConfigAsync() {
-        this._file.load_contents_async(null, (_file, res) => {
-            const [ok, contents] = this._file.load_contents_finish(res);
-            if (!ok)
-                return;
-
-            const parsed = JSON.parse(new TextDecoder().decode(contents));
-            this._config = { ...DEFAULT_CONFIG, ...parsed };
-            this._syncUI();
-        });
-    }
-
-    _saveConfigAsync() {
-        const json = JSON.stringify(this._config, null, 2);
-        const bytes = new GLib.Bytes(new TextEncoder().encode(json));
-        this._file.replace_contents_bytes_async(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null, null);
-    }
-
-    _syncUI() {
-        this._lengthEntry.set_text(String(this._config.length));
-        this._swLower.setToggleState(this._config.useLower);
-        this._swUpper.setToggleState(this._config.useUpper);
-        this._swDigits.setToggleState(this._config.useDigits);
-        this._swSymbols.setToggleState(this._config.useSymbols);
-        this._swAmbiguous.setToggleState(this._config.excludeAmbiguous);
     }
 
     _setupGestures() {
@@ -171,11 +132,11 @@ class PasswordGeneratorButton extends PanelMenu.Button {
             can_focus: true,
         });
         btnDown.connect('clicked', () => {
-            this._setLength(this._config.length - 1);
+            this._setLength(this._settings.get_int('length') - 1);
         });
 
         this._lengthEntry = new St.Entry({
-            text: String(this._config.length),
+            text: String(this._settings.get_int('length')),
             style: 'width: 48px; text-align: center; margin: 0 4px; font-weight: bold;',
             can_focus: true,
         });
@@ -184,7 +145,7 @@ class PasswordGeneratorButton extends PanelMenu.Button {
             if (!isNaN(val))
                 this._setLength(val);
             else
-                this._lengthEntry.set_text(String(this._config.length));
+                this._lengthEntry.set_text(String(this._settings.get_int('length')));
         });
 
         const btnUp = new St.Button({
@@ -194,7 +155,7 @@ class PasswordGeneratorButton extends PanelMenu.Button {
             can_focus: true,
         });
         btnUp.connect('clicked', () => {
-            this._setLength(this._config.length + 1);
+            this._setLength(this._settings.get_int('length') + 1);
         });
 
         this._lengthItem.add_child(btnDown);
@@ -204,40 +165,35 @@ class PasswordGeneratorButton extends PanelMenu.Button {
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._swLower = new PopupMenu.PopupSwitchMenuItem('Lowercase (a-z)', this._config.useLower);
+        this._swLower = new PopupMenu.PopupSwitchMenuItem('Lowercase (a-z)', this._settings.get_boolean('use-lower'));
         this._swLower.connect('toggled', (_item, state) => {
-            this._config.useLower = state;
-            this._saveConfigAsync();
+            this._settings.set_boolean('use-lower', state);
         });
         this.menu.addMenuItem(this._swLower);
 
-        this._swUpper = new PopupMenu.PopupSwitchMenuItem('Uppercase (A-Z)', this._config.useUpper);
+        this._swUpper = new PopupMenu.PopupSwitchMenuItem('Uppercase (A-Z)', this._settings.get_boolean('use-upper'));
         this._swUpper.connect('toggled', (_item, state) => {
-            this._config.useUpper = state;
-            this._saveConfigAsync();
+            this._settings.set_boolean('use-upper', state);
         });
         this.menu.addMenuItem(this._swUpper);
 
-        this._swDigits = new PopupMenu.PopupSwitchMenuItem('Digits (0-9)', this._config.useDigits);
+        this._swDigits = new PopupMenu.PopupSwitchMenuItem('Digits (0-9)', this._settings.get_boolean('use-digits'));
         this._swDigits.connect('toggled', (_item, state) => {
-            this._config.useDigits = state;
-            this._saveConfigAsync();
+            this._settings.set_boolean('use-digits', state);
         });
         this.menu.addMenuItem(this._swDigits);
 
-        this._swSymbols = new PopupMenu.PopupSwitchMenuItem('Special characters (!@#$...)', this._config.useSymbols);
+        this._swSymbols = new PopupMenu.PopupSwitchMenuItem('Special characters (!@#$...)', this._settings.get_boolean('use-symbols'));
         this._swSymbols.connect('toggled', (_item, state) => {
-            this._config.useSymbols = state;
-            this._saveConfigAsync();
+            this._settings.set_boolean('use-symbols', state);
         });
         this.menu.addMenuItem(this._swSymbols);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this._swAmbiguous = new PopupMenu.PopupSwitchMenuItem('Exclude ambiguous characters', this._config.excludeAmbiguous);
+        this._swAmbiguous = new PopupMenu.PopupSwitchMenuItem('Exclude ambiguous characters', this._settings.get_boolean('exclude-ambiguous'));
         this._swAmbiguous.connect('toggled', (_item, state) => {
-            this._config.excludeAmbiguous = state;
-            this._saveConfigAsync();
+            this._settings.set_boolean('exclude-ambiguous', state);
         });
         this.menu.addMenuItem(this._swAmbiguous);
 
@@ -251,13 +207,12 @@ class PasswordGeneratorButton extends PanelMenu.Button {
 
     _setLength(val) {
         const clamped = Math.max(4, Math.min(32, val));
-        this._config.length = clamped;
+        this._settings.set_int('length', clamped);
         this._lengthEntry.set_text(String(clamped));
-        this._saveConfigAsync();
     }
 
     _generateAndCopy() {
-        const password = generatePassword(this._config);
+        const password = generatePassword(this._settings);
 
         if (!password) {
             Main.osdWindowManager.showAll(this._gicon, 'Select at least one character set!', null, null);
@@ -267,18 +222,21 @@ class PasswordGeneratorButton extends PanelMenu.Button {
         const clipboard = St.Clipboard.get_default();
         clipboard.set_text(St.ClipboardType.CLIPBOARD, password);
 
-        Main.osdWindowManager.showAll(this._gicon, `Password (${this._config.length} chars) copied!`, null, null);
+        const len = this._settings.get_int('length');
+        Main.osdWindowManager.showAll(this._gicon, `Password (${len} chars) copied!`, null, null);
     }
 });
 
 export default class PasswordGeneratorExtension extends Extension {
     enable() {
-        this._button = new PasswordGeneratorButton(this.path);
+        this._settings = this.getSettings();
+        this._button = new PasswordGeneratorButton(this.path, this._settings);
         Main.panel.addToStatusArea(this.uuid, this._button);
     }
 
     disable() {
         this._button?.destroy();
         this._button = null;
+        this._settings = null;
     }
 }
