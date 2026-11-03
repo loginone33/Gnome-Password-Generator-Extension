@@ -15,14 +15,14 @@
   - **Digits**: `0-9` toggle.
   - **Special Characters**: `!@#$%^&*...` toggle.
   - **Exclude Ambiguous Characters**: Filter out confusing characters such as `l`, `I`, `1`, `o`, `O`, `0`, and `|`.
-- **Persistent Configuration**: Settings are saved locally in `~/.config/gnome-password-generator.json`.
+- **Persistent Configuration**: Settings are saved via standard GSettings schema (`org.gnome.shell.extensions.password-generator`).
 - **Clean & Lightweight**: Native GNOME Shell implementation with zero external dependencies.
 
 ---
 
 ## Compatibility
 
-- **GNOME Shell**: 45, 46, 47, 48, 49, 50
+- **GNOME Shell**: 45, 46, 47, 48, 49, 50, 51
 - **Session**: Wayland & X11
 
 ---
